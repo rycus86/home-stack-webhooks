@@ -26,7 +26,7 @@ endpoints:
                 {{ request.json|tojson }}
 
         - http:
-            target: 'http://webhook-updater:6002/update/service'
+            target: 'http://updater:6002/update/service'
             method: 'POST'
             headers:
               Content-Type: 'application/json'
@@ -78,7 +78,7 @@ endpoints:
               {{ read_config(context.project_name, '/var/secrets/github') }}
 
         - http:
-            target: 'http://webhook-updater:6002/update/home-stack'
+            target: 'http://updater:6002/update/home-stack'
             method: 'POST'
             headers:
               Content-Type: 'application/json'
