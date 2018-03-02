@@ -1,0 +1,97 @@
+server:
+  host: '0.0.0.0'
+  port: '6001'
+
+endpoints:
+
+  - /docker:
+      method: 'POST'
+
+      body:
+        repository:
+          owner: 'rycus86'
+          namespace: 'rycus86'
+          repo_name: 'rycus86/.+'
+        push_data:
+          pusher: 'rycus86'
+          tag: '.+'
+
+      actions:
+        - log:
+            message: >
+              Incoming request on {{ request.path }} at {{ datetime }}
+              - Request headers:
+                {{ request.headers }}
+              - Request payload:
+                {{ request.json|tojson }}
+
+        - http:
+            target: 'http://webhook-updater:6002/update/service'
+            method: 'POST'
+            headers:
+              Content-Type: 'application/json'
+              X-From: 'webhook-proxy'
+              X-Auth-Key: '{{ read_config("AUTH_DOCKER", "/var/secrets/http.auth") }}'
+            body: >
+              {
+                "repo":     "{{ request.json.repository.repo_name }}",
+                "tag":      "{{ request.json.push_data.tag }}",
+                "source":   "{{ request.path }}"
+              }
+
+        - metrics:
+            summary:
+              name: webhook_docker
+              help: Requests from Docker Hub
+              labels:
+                repository: '{{ request.json.repository.repo_name }}'
+                tag: '{{ request.json.push_data.tag }}'
+
+  - /github/stack:
+      method: 'POST'
+
+      headers:
+        X-GitHub-Event: '(push|ping)'
+        X-Github-Delivery: '^[0-9a-f\-]+$'
+        X-Hub-Signature: 'sha1=[0-9a-f]+'
+
+      body:
+        ref: 'refs/heads/master'
+        repository:
+          full_name: 'rycus86/.+'
+        sender:
+          login: 'rycus86'
+
+      actions:
+        - log:
+            message: |
+              Request to update {{ request.json.repository.name }}:
+                X-Github-Delivery: {{ request.headers['X-Github-Delivery'] }}
+                X-Hub-Signature  : {{ request.headers['X-Hub-Signature'] }}
+
+        - eval:
+            block: |
+              {% set _ = context.set('project_name', request.json.repository.name|upper|replace('-', '_')) %}
+
+        - github-verify:
+            secret: >
+              {{ read_config(context.project_name, '/var/secrets/github') }}
+
+        - http:
+            target: 'http://webhook-updater:6002/update/home-stack'
+            method: 'POST'
+            headers:
+              Content-Type: 'application/json'
+              X-From: 'webhook-proxy'
+              X-Auth-Key: '{{ read_config("AUTH_GITHUB", "/var/secrets/http.auth") }}'
+            body: >
+              {
+                "repository": "{{ request.json.repository.name }}",
+                "clone_url": "{{ request.json.repository.clone_url }}",
+                "changes": {{ request.json.commits|default([], true)|tojson }}
+              }
+
+        - metrics:
+            summary:
+              name: webhook_home_stack
+              help: Requests to update a whole stack

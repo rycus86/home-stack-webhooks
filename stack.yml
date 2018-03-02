@@ -1,0 +1,126 @@
+version: '3.6'
+
+x-log-options:
+  &log-options
+  fluentd-address: 192.168.0.52:24224
+  fluentd-async-connect: 'true'
+  fluentd-sub-second-precision: 'true'
+
+services:
+
+  # External
+  webhook-receiver:
+    image: rycus86/webhook-proxy
+    read_only: true
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        routing-host: api.viktoradam.net
+        routing-context: /webhook
+        routing-port: 6001
+        prometheus-job: webhook-proxy
+        prometheus-port: 6001
+    secrets:
+      - source: github-secrets
+        target: /var/secrets/github
+      - source: http-secrets
+        target: /var/secrets/http.auth
+    configs:
+      - source: webhook-receiver
+        target: /app/server.yml
+    networks:
+      - default
+      - monitoring
+      - web
+    logging:
+      driver: 'fluentd'
+      options:
+        <<: *log-options
+        tag: app.webhook-proxy.receiver
+
+  # Internal
+  webhook-updater:
+    image: rycus86/webhook-proxy:docker
+    read_only: true
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        order: start-first
+      labels:
+        prometheus-job: webhook-updater
+        prometheus-port: 6002
+    secrets:
+      - source: app-config
+        target: /var/secrets/app.config
+      - source: http-secrets
+        target: /var/secrets/http.auth
+    configs:
+      - source: webhook-updater
+        target: /app/server.yml
+      - source: webhook-actions
+        target: /var/webhook/actions/custom.py
+    volumes:
+      - type: volume
+        source: stacks-root
+        target: /etc/stacks
+        volume:
+          nocopy: true
+      - type: tmpfs
+        target: /tmp
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+    networks:
+      - default
+      - monitoring
+    logging:
+      driver: 'fluentd'
+      options:
+        <<: *log-options
+        tag: app.webhook-proxy.updater
+
+configs:
+  webhook-receiver:
+    file: ./config/receiver.yml
+    name: webhook-receiver-${RECEIVER_YML}
+  webhook-updater:
+    file: ./config/updater.yml
+    name: webhook-updater-${UPDATER_YML}
+  webhook-actions:
+    file: ./config/updater_actions.py
+    name: webhook-actions-${UPDATER_ACTIONS_PY}
+
+secrets:
+  app-config:
+    file: ./config/app.config.secret
+    name: webhook-app-config-${APP_CONFIG_SECRET}
+  http-secrets:
+    file: ./config/http.auth.secret
+    name: webhook-http-auth-${HTTP_AUTH_SECRET}
+  github-secrets:
+    file: ./config/github.secret
+    name: webhook-github-secrets-${GITHUB_SECRET}
+
+volumes:
+  stacks-root:
+    driver: local
+    driver_opts:
+      type: nfs4
+      device: :/home-stack
+      o: addr=192.168.0.52,rsize=8192,wsize=8192,timeo=15,hard,intr
+
+networks:
+  web:
+    name: home-web
+    external: true
+  monitoring:
+    name: home-monitoring
+    external: true

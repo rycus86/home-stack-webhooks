@@ -1,0 +1,129 @@
+server:
+  host: '0.0.0.0'
+  port: '6002'
+  imports:
+    - /var/webhook/actions/custom.py
+
+endpoints:
+
+  # Update services with a new image
+  - /update/service:
+      method: 'POST'
+      async: true
+
+      headers:
+        X-From: 'webhook-proxy'
+        X-Auth-Key: '{{ read_config("AUTH_DOCKER", "/var/secrets/http.auth") }}'
+
+      body:
+        repo: 'rycus86/.+'
+        tag: '^(latest|docker|worker)$'
+
+      actions:
+        - log:
+            message: |
+              Updating for {{ request.json.source }} at {{ datetime }}
+              Requested to update services for {{ request.json.repo }}:{{ request.json.tag }} ...
+
+        - docker:
+            $images:
+              $pull:
+                name: '{{ request.json.repo }}'
+                tag:  '{{ request.json.tag }}'
+            output: >
+              {% set tag_idx       = result.attrs.RepoTags.index('%s:%s'|format(request.json.repo, request.json.tag)) %}
+              {% set replace_from  = '%s@'|format(request.json.repo) %}
+              {% set replace_to    = '%s:%s@'|format(request.json.repo, request.json.tag) %}
+              {% set target_digest = result.attrs.RepoDigests[tag_idx]|replace(replace_from, replace_to) %}
+              The target image digest is: {{ target_digest }}
+              {% set _ = context.set('image_spec', target_digest) %}
+
+        - docker:
+            $services:
+              $list:
+            output: >
+              {% set image_spec = '%s:%s'|format(request.json.repo, request.json.tag) %}
+              {% for service in result -%}
+                {% if service.attrs.Spec.TaskTemplate.ContainerSpec.Image.startswith(image_spec) -%}
+                  Updating service: {{ service.name }} ... {{ service.update(image=context.image_spec) }}
+                {% endif %}
+              {% endfor %}
+
+        - metrics:
+            summary:
+              name: webhook_update_service
+              help: Requests to update services
+              labels:
+                repository: '{{ request.json.repo }}'
+                tag: '{{ request.json.tag }}'
+
+  # Update a Swarm stack
+  - /update/home-stack:
+      method: 'POST'
+      async: true
+
+      headers:
+        X-From: 'webhook-proxy'
+        X-Auth-Key: '{{ read_config("AUTH_GITHUB", "/var/secrets/http.auth") }}'
+
+      actions:
+        - eval:
+            block: |
+              {% set _ = context.set('project_name', request.json.repository|replace('home-stack-', '')) %}
+              
+              {% set _ = context.set('user', read_config('APP_USER', '/var/secrets/app.config')) %}
+              {% set _ = context.set('home_dir', read_config('APP_HOME_DIR', '/var/secrets/app.config')) %}
+              {% set _ = context.set('base_dir', read_config('APP_BASE_DIR', '/var/secrets/app.config')) %}
+
+        - log:
+            message: |
+              [{{ context.project_name }}] Updating {{ request.json.repository }} for changes:
+              {% for change in request.json.changes %}
+              - {{ change.id }}
+                [{{ change.timestamp }}] {{ change.message|trim }}
+              {% endfor %}
+
+        - docker:
+            $containers:
+              $run:
+                image: alpine
+                command: >
+                  mkdir -p /work/home-stack/{{ context.project_name }}
+                remove: true
+                user: '{{ context.user }}'
+                working_dir: /work
+                volumes:
+                  - '{{ context.base_dir }}:/work'
+
+        - git-update:
+            user: '{{ context.user }}'
+            check_dir: '/etc/stacks/{{ context.project_name }}'
+            clone_url: '{{ request.json.clone_url }}'
+            crypt_key: '/etc/secrets/keys/{{ context.project_name }}.key'
+            volumes:
+              - '{{ context.base_dir }}/home-stack/{{ context.project_name }}:/workdir'
+              - '{{ context.base_dir }}/git-crypt-keys:/etc/secrets/keys:ro'
+              - '{{ context.home_dir }}/.ssh:{{ context.home_dir }}/.ssh:ro'
+              - /etc/passwd:/etc/passwd:ro
+              - /etc/group:/etc/group:ro
+
+        - stack-prepare-networks:
+            config_dir: '/etc/stacks/{{ context.project_name }}'
+            stack_file: stack.yml
+
+        - stack-deploy:
+            stack_name: '{{ context.project_name }}'
+            stack_file: stack.yml
+            config_dir: '/etc/stacks/{{ context.project_name }}'
+            working_dir: '{{ context.base_dir }}/home-stack/{{ context.project_name }}'
+            volumes:
+              - '{{ context.home_dir }}/.docker/config.json:/root/.docker/config.json:ro'
+              - /usr/bin/docker:/usr/local/bin/docker
+              - /var/run/docker.sock:/var/run/docker.sock
+
+        - metrics:
+            summary:
+              name: webhook_update_home_stack
+              help: Requests to update a whole stack
+              labels:
+                stack: '{{ context.project_name }}'
