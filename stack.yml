@@ -9,7 +9,7 @@ x-log-options:
 services:
 
   # External
-  webhook-receiver:
+  receiver:
     image: rycus86/webhook-proxy
     read_only: true
     deploy:
@@ -42,7 +42,7 @@ services:
         tag: app.webhook-proxy.receiver
 
   # Internal
-  webhook-updater:
+  updater:
     image: rycus86/webhook-proxy:docker
     read_only: true
     deploy:
