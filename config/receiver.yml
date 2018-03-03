@@ -58,7 +58,7 @@ endpoints:
       body:
         ref: 'refs/heads/master'
         repository:
-          full_name: 'rycus86/.+'
+          full_name: 'rycus86/home-stack-.+'
         sender:
           login: 'rycus86'
 
@@ -95,3 +95,45 @@ endpoints:
             summary:
               name: webhook_home_stack
               help: Requests to update a whole stack
+
+  - /bitbucket/stack:
+      method: 'POST'
+
+      body:
+        actor:
+          username: 'rycus86'
+        repository:
+          full_name: 'rycus86/home-stack-.+'
+
+      actions:
+        - log:
+            message: |
+              Request to update {{ request.json.repository.name }}
+
+        - eval:
+            block: |
+              {% set _ = context.set('project_name', request.json.repository.name|upper|replace('-', '_')) %}
+              
+              {% set changes = request.json.push.changes %}
+              {% if changes %}
+                {% set _ = context.set('changes', changes[0].commits) %}
+              {% endif %}
+
+        - http:
+            target: 'http://updater:6002/update/home-stack'
+            method: 'POST'
+            headers:
+              Content-Type: 'application/json'
+              X-From: 'webhook-proxy'
+              X-Auth-Key: '{{ read_config("AUTH_BITBUCKET", "/var/secrets/http.auth") }}'
+            body: >
+              {
+                "repository": "{{ request.json.repository.name }}",
+                "clone_url": "git@bitbucket.org:{{ request.json.repository.full_name }}.git",
+                "changes": {{ context.changes|default([], true)|tojson }}
+              }
+
+        - metrics:
+            summary:
+              name: webhook_bitbucket_stack
+              help: Requests to update a whole stack (from BitBucket)

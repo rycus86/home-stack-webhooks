@@ -64,7 +64,7 @@ endpoints:
 
       headers:
         X-From: 'webhook-proxy'
-        X-Auth-Key: '{{ read_config("AUTH_GITHUB", "/var/secrets/http.auth") }}'
+        X-Auth-Key: '({{ read_config("AUTH_GITHUB", "/var/secrets/http.auth") }}|{{ read_config("AUTH_BITBUCKET", "/var/secrets/http.auth") }})'
 
       actions:
         - eval:
@@ -79,8 +79,8 @@ endpoints:
             message: |
               [{{ context.project_name }}] Updating {{ request.json.repository }} for changes:
               {% for change in request.json.changes %}
-              - {{ change.id }}
-                [{{ change.timestamp }}] {{ change.message|trim }}
+              - {{ change.id|default(change.hash, true) }}
+                [{{ change.timestamp|default(change.date) }}] {{ change.message|trim }}
               {% endfor %}
 
         - docker:
