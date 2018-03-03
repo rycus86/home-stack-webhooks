@@ -46,6 +46,7 @@ class GitUpdateAction(Action):
         volumes = map(self._render_with_template, self.volumes)
         check_dir = self._render_with_template(self.check_dir) if self.check_dir else None
         crypt_key = self._render_with_template(self.crypt_key) if self.crypt_key else None
+        user = self._render_with_template(self.user) if self.user else None
 
         if check_dir and not os.path.exists('%s/.git' % check_dir):
             if not self.clone_url:
@@ -54,16 +55,16 @@ class GitUpdateAction(Action):
             clone_url = self._render_with_template(self.clone_url)
 
             print(client.containers.run(image='git-updater', command='git clone %s .' % clone_url,
-                                        user=self.user, working_dir='/workdir',
+                                        user=user, working_dir='/workdir',
                                         volumes=volumes, remove=True))
 
         print(client.containers.run(image='git-updater', command='git pull',
-                                    user=self.user, working_dir='/workdir',
+                                    user=user, working_dir='/workdir',
                                     volumes=volumes, remove=True))
 
         if crypt_key:
             print(client.containers.run(image='git-updater', command='git-crypt unlock %s' % crypt_key,
-                                        user=self.user, working_dir='/workdir',
+                                        user=user, working_dir='/workdir',
                                         volumes=volumes, remove=True))
 
 
