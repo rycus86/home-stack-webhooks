@@ -1,0 +1,39 @@
+@startuml
+
+cloud "GitHub" as GH #aaf
+cloud "Docker Hub" as DH #aaf
+
+frame "Webhook stack" as stack {
+    [Receiver] << rycus86/webhook-proxy >> as receiver #8f8
+    [Updater] << rycus86/webhook-proxy:docker >> as updater #f88
+
+    (Docker engine) as docker #ccc
+}
+
+frame "Web stack" as web_stack {
+    [Nginx reverse proxy] << nginx >> as nginx #9cc
+}
+
+frame "Monitoring stack" {
+    [Prometheus] #ccc
+}
+
+frame "Logging stack" {
+    [Fluentd] #ccc
+}
+
+nginx --> receiver : api.viktoradam.net/webhook
+receiver --> updater : Forward accepted hooks
+updater --> docker : Execute updates
+updater .u..> GH : Fetch stack repos
+
+GH --> nginx : Webhook: \n Stack repo updated
+DH --> nginx : Webhook: \n Image updated
+
+[Prometheus] .r.> receiver : Collect metrics
+[Prometheus] .r.> updater
+
+receiver ...> [Fluentd]
+updater ...> [Fluentd] : Send logs
+
+@enduml
