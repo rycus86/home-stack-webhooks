@@ -28,7 +28,7 @@ endpoints:
         - docker:
             $images:
               $pull:
-                name: '{{ request.json.repo }}'
+                repository: '{{ request.json.repo }}'
                 tag:  '{{ request.json.tag }}'
             output: >
               {% set tag_idx       = result.attrs.RepoTags.index('%s:%s'|format(request.json.repo, request.json.tag)) %}
