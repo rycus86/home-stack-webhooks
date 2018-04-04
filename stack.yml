@@ -31,6 +31,14 @@ services:
     configs:
       - source: webhook-receiver
         target: /app/server.yml
+    volumes:
+      - type: volume
+        source: webhooks-data
+        target: /vat/data/db
+        volume:
+          nocopy: true
+    environment:
+      - REPLAY_DATABASE=/vat/data/db/replay-receiver.db
     networks:
       - default
       - monitoring
@@ -72,12 +80,19 @@ services:
         target: /etc/stacks
         volume:
           nocopy: true
+      - type: volume
+        source: webhooks-data
+        target: /vat/data/db
+        volume:
+          nocopy: true
       - type: tmpfs
         target: /tmp
       - type: bind
         source: /var/run/docker.sock
         target: /var/run/docker.sock
         read_only: true
+    environment:
+      - REPLAY_DATABASE=/vat/data/db/replay-updater.db
     networks:
       - default
       - monitoring
@@ -115,6 +130,13 @@ volumes:
     driver_opts:
       type: nfs4
       device: :/home-stack
+      o: addr=192.168.0.52,rsize=8192,wsize=8192,timeo=15,hard,intr
+
+  webhooks-data:
+    driver: local
+    driver_opts:
+      type: nfs4
+      device: :/webhooks-data
       o: addr=192.168.0.52,rsize=8192,wsize=8192,timeo=15,hard,intr
 
 networks:
