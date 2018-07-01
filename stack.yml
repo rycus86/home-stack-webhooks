@@ -86,6 +86,7 @@ services:
         target: /tmp
     environment:
       DOCKER_HOST: tcp://docker-manager:2375
+      GIT_DISCOVERY_ACROSS_FILESYSTEM: '1'
       REPLAY_DATABASE: /var/data/db/replay-updater.db
     networks:
       - default
