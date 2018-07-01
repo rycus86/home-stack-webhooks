@@ -55,9 +55,6 @@ services:
     read_only: true
     deploy:
       replicas: 1
-      placement:
-        constraints:
-          - node.role == manager
       update_config:
         parallelism: 1
         order: start-first
@@ -82,7 +79,7 @@ services:
           nocopy: true
       - type: volume
         source: webhooks-data
-        target: /vat/data/db
+        target: /var/data/db
         volume:
           nocopy: true
       - type: tmpfs
@@ -92,10 +89,12 @@ services:
         target: /var/run/docker.sock
         read_only: true
     environment:
-      - REPLAY_DATABASE=/vat/data/db/replay-updater.db
+      DOCKER_HOST: tcp://docker-manager:2375
+      REPLAY_DATABASE: /var/data/db/replay-updater.db
     networks:
       - default
       - monitoring
+      - docker
     logging:
       driver: 'fluentd'
       options:
@@ -145,4 +144,7 @@ networks:
     external: true
   monitoring:
     name: home-monitoring
+    external: true
+  docker:
+    name: home-docker
     external: true
