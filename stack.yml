@@ -84,10 +84,6 @@ services:
           nocopy: true
       - type: tmpfs
         target: /tmp
-      - type: bind
-        source: /var/run/docker.sock
-        target: /var/run/docker.sock
-        read_only: true
     environment:
       DOCKER_HOST: tcp://docker-manager:2375
       REPLAY_DATABASE: /var/data/db/replay-updater.db
