@@ -119,6 +119,7 @@ endpoints:
             volumes:
               - '{{ context.home_dir }}/.docker/config.json:/root/.docker/config.json:ro'
               - /usr/bin/docker:/usr/local/bin/docker
+              - /var/run/docker.sock:/var/run/docker.sock
 
         - metrics:
             summary:
