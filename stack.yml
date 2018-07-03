@@ -139,13 +139,6 @@ volumes:
       device: :/webhooks-data
       o: addr=192.168.0.52,rsize=8192,wsize=8192,timeo=15,hard,intr
 
-  webhooks-data:
-    driver: local
-    driver_opts:
-      type: nfs4
-      device: :/webhooks-data
-      o: addr=192.168.0.52,rsize=8192,wsize=8192,timeo=15,hard,intr
-
 networks:
   web:
     name: home-web
