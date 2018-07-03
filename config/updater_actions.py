@@ -19,10 +19,12 @@ class GitUpdateAction(Action):
     """
     Update the contents of a Git repo in a directory, and optionally unlock encrypted files.
 
-    To do this, first a `debian` based image is build with the necessary tools installed.
+    To do this, first a `debian` based image is built with the necessary tools installed.
     This then clones the project if it doesn't exist locally yet.
     The changes are pulled from Git.
     The encrypted files are decrypted using git-crypt optionally.
+
+    This step always uses the local Docker endpoint.
     """
 
     def __init__(self, volumes, clone_url=None, check_dir=None, crypt_key=None, user=None):
@@ -38,7 +40,7 @@ class GitUpdateAction(Action):
         RUN apt update && apt install -y git-core git-crypt openssl
         """
 
-        client = docker.DockerClient(version='auto')
+        client = docker.DockerClient('unix:///var/run/docker.sock', version='auto')
         client.images.build(fileobj=BytesIO(dockerfile), rm=True, forcerm=True, tag='git-updater')
 
         print('Git updater image ready')
@@ -148,7 +150,7 @@ class StackDeployAction(Action):
 
         volumes.append('%s:%s:ro' % (working_dir, working_dir))
 
-        client = docker.DockerClient(version='auto')
+        client = docker.from_env()
         client.images.build(fileobj=BytesIO(dockerfile), rm=True, forcerm=True, tag='stack-deploy')
 
         print('Stack deploy image ready')
@@ -158,12 +160,18 @@ class StackDeployAction(Action):
             for key, value in self._prepare_secret_versions(config_dir, stack_file)
         }
 
+        docker_host = os.getenv('DOCKER_HOST')
+
+        env_vars = dict(secret_versions)
+        if docker_host:
+            env_vars['DOCKER_HOST'] = docker_host
+
         print(client.containers.run(
             image='stack-deploy',
             command='docker stack deploy -c %s --resolve-image=always --with-registry-auth %s' %
                     (stack_file, stack_name),
             user=self.user, working_dir=working_dir,
-            environment=secret_versions,
+            environment=env_vars,
             volumes=volumes, remove=True)
         )
 

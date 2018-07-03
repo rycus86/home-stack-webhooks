@@ -103,7 +103,7 @@ endpoints:
             volumes:
               - '{{ context.base_dir }}/home-stack/{{ context.project_name }}:/workdir'
               - '{{ context.base_dir }}/git-crypt-keys:/etc/secrets/keys:ro'
-              - '{{ context.home_dir }}/.ssh:{{ context.home_dir }}/.ssh:ro'
+              - '{{ context.base_dir }}/ssh-keys:{{ context.home_dir }}/.ssh:ro'
               - /etc/passwd:/etc/passwd:ro
               - /etc/group:/etc/group:ro
 
