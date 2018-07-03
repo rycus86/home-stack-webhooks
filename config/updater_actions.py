@@ -40,7 +40,7 @@ class GitUpdateAction(Action):
         RUN apt update && apt install -y git-core git-crypt openssl
         """
 
-        client = docker.DockerClient('unix:///var/run/docker.sock', version='auto')
+        client = docker.from_env()
         client.images.build(fileobj=BytesIO(dockerfile), rm=True, forcerm=True, tag='git-updater')
 
         print('Git updater image ready')

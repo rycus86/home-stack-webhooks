@@ -89,13 +89,10 @@ services:
       - type: tmpfs
         target: /tmp
     environment:
-      DOCKER_HOST: tcp://docker-manager:2375
-      GIT_DISCOVERY_ACROSS_FILESYSTEM: '1'
       REPLAY_DATABASE: /var/data/db/replay-updater.db
     networks:
       - default
       - monitoring
-      - docker
     logging:
       driver: 'fluentd'
       options:
@@ -145,7 +142,4 @@ networks:
     external: true
   monitoring:
     name: home-monitoring
-    external: true
-  docker:
-    name: home-docker
     external: true
